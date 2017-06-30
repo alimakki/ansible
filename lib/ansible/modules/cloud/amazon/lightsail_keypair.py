@@ -189,26 +189,26 @@ def import_keypair(module, client):
     """
     # Check if the keypair already exists
 
-    # TODO call to get_keypair()
-
     changed = False
 
     key_pair_name = module.params.get('key_pair_name')
     public_key = module.params.get('public_key_base64')
 
-    resp = None
+    _ch, _kp_name = get_keypair(module, client)
 
-    try:
-        resp = client.import_key_pair(
-                keyPairName=key_pair_name,
-                publicKeyBase64=public_key
-            )
-    except botocore.exceptions.ClientError as e:
-        module.fail_json(msg='Unable to import keypair {0}, error {1}'.format(key_pair_name, e))
-    changed = True
-
-    return (changed, resp)
-
+    if _kp_name is not None:
+        if _kp_name['name'] == key_pair_name:
+            module.fail_json(msg='Keypair with name {0} already exists'.format(key_pair_name))
+            return (changed, _kp_name)
+    else:
+        resp = None
+        try:
+            resp = client.import_key_pair(keyPairName=key_pair_name, publicKeyBase64=public_key)
+            changed = True
+        except botocore.exceptions.ClientError as e:
+            module.fail_json(msg='Unable to import keypair {0}, error {1}'.format(key_pair_name, e))
+        
+        return (changed, resp)
 
 def create_keypair(module, client):
     """
@@ -224,10 +224,10 @@ def create_keypair(module, client):
 
     try:
         resp = client.create_key_pair(keyPairName=key_pair_name)
+        changed = True
     except botocore.exceptions.ClientError as e:
         module.fail_json(msg='Unable to create keypair {0}, error {1}'.format(key_pair_name, e))
-    changed = True
-
+    
     return (changed, resp)
 
 def delete_key_pair(module, client):
@@ -243,11 +243,11 @@ def delete_key_pair(module, client):
     resp = None
 
     try:
-        resp = client.create_key_pair(keyPairName=key_pair_name)
-        resp = resp['operation']
+        resp = client.create_key_pair(keyPairName=key_pair_name)['operation']
+        changed = True
     except botocore.exceptions.ClientError as e:
         module.fail_json(msg='Unable to delete keypair {0}, error {1}'.format(key_pair_name, e))
-    changed = True
+    
 
     return (changed, resp)
 
@@ -264,8 +264,7 @@ def get_keypair(module, client):
     resp = None
 
     try:
-        resp = client.get_key_pair(keyPairName=key_pair_name)
-        resp = resp['keyPair']
+        resp = client.get_key_pair(keyPairName=key_pair_name)['keyPair']
     except botocore.exceptions.ClientError as e:
         module.fail_json(msg='Unable to get keypair {0}, error {1}'.format(key_pair_name, e))
 
@@ -284,14 +283,16 @@ def get_keypairs(module, client):
     resp = None
 
     try:
-        resp = client.get_key_pairs(pageToken=page_token)
-        resp = resp['keyPairs']
+        resp = client.get_key_pairs(pageToken=page_token)['keyPairs']
     except botocore.exceptions.ClientError as e:
         module.fail_json(msg='Unable to get keypair {0}, error {1}'.format(page_token, e))
 
     return (changed, resp)
 
 def core(module):
+    """
+    docstring
+    """
     region, ec2_url, aws_connect_kwargs = get_aws_connection_info(module, boto3=True)
     if not region:
         module.fail_json(msg='region must be specified')
@@ -300,34 +301,38 @@ def core(module):
 
     try:
         client = boto3_conn(module, conn_type='client', resource='lightsail',
-                           region=region, endpoint=ec2_url, **aws_connect_kwargs)
-        
+                            region=region, endpoint=ec2_url, **aws_connect_kwargs)
+
     except (botocore.exceptions.ClientError, botocore.exceptions.ValidationError) as e:
         module.fail_json('Failed while connecting to the lightsail service: %s' % e, exception=traceback.format_exc())
 
     changed = False
+    response_dict = None
     state = module.params['state']
-    name = module.params['name']
 
     if state == 'absent':
-      change, operation_dict = delete_key_pair(module, client)
+        changed, response_dict = delete_key_pair(module, client)
         # changed, instance_dict = delete_instance(module, client, name)
     elif state in ('running', 'stopped'):
-      print("foo")
+        print "foo"
         # changed, instance_dict = startstop_instance(module, client, name, state)
     elif state == 'restarted':
-      print("foo")
+        print "foo"
         # changed, instance_dict = restart_instance(module, client, name)
     elif state == 'present':
-        changed, key_pair_dict = import_keypair(module, client)
+        changed, response_dict = import_keypair(module, client)
 
-    module.exit_json(changed=changed, instance=camel_dict_to_snake_dict(key_pair_dict))
+    module.exit_json(changed=changed, instance=camel_dict_to_snake_dict(response_dict))
 
 def main():
+    """
+    docstring
+    """
     argument_spec = ec2_argument_spec()
     argument_spec.update(dict(
         name=dict(type='str', required=True),
-        state=dict(type='str', default='present', choices=['present', 'absent', 'stopped', 'running', 'restarted']),
+        state=dict(type='str', default='present',
+                   choices=['present', 'absent', 'stopped', 'running', 'restarted']),
         public_key_base64=dict(type='str'),
         key_pair_name=dict(type='str'),
         page=dict(type='str'),
