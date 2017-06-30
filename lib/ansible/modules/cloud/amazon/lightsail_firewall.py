@@ -53,3 +53,66 @@ except ImportError:
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.ec2 import ec2_argument_spec, get_aws_connection_info, boto3_conn, HAS_BOTO3, camel_dict_to_snake_dict
+
+def open_port(module, client, from_port, to_port, protocol, instance_name):
+    print("do something...")
+    
+def core(module):
+    region, ec2_url, aws_connect_kwargs = get_aws_connection_info(module, boto3=True)
+    if not region:
+        module.fail_json(msg='region must be specified')
+
+    client = None
+
+    try:
+        client = boto3_conn(module, conn_type='client', resource='lightsail',
+                           region=region, endpoint=ec2_url, **aws_connect_kwargs)
+        
+    except (botocore.exceptions.ClientError, botocore.exceptions.ValidationError) as e:
+        module.fail_json('Failed while connecting to the lightsail service: %s' % e, exception=traceback.format_exc())
+
+    changed = False
+    state = module.params['state']
+    name = module.params['name']
+
+    if state == 'absent':
+      print("foo")
+        # changed, instance_dict = delete_instance(module, client, name)
+    elif state in ('running', 'stopped'):
+      print("foo")
+        # changed, instance_dict = startstop_instance(module, client, name, state)
+    elif state == 'restarted':
+      print("foo")
+        # changed, instance_dict = restart_instance(module, client, name)
+    elif state == 'present':
+        changed, key_pair_dict = import_keypair(module, client)
+
+    module.exit_json(changed=changed, instance=camel_dict_to_snake_dict(key_pair_dict))
+
+def main():
+    argument_spec = ec2_argument_spec()
+    argument_spec.update(dict(
+        name=dict(type='str', required=True),
+        state=dict(type='str', default='present', choices=['present', 'absent', 'stopped', 'running', 'restarted']),
+        public_key_base64=dict(type='str'),
+        key_pair_name=dict(type='str'),
+        page=dict(type='str'),
+        wait=dict(type='bool', default=True),
+        wait_timeout=dict(default=300),
+    ))
+
+    module = AnsibleModule(argument_spec=argument_spec)
+
+    if not HAS_BOTO3:
+        module.fail_json(msg='Python module "boto3" is missing, please install it')
+
+    if not HAS_BOTOCORE:
+        module.fail_json(msg='Python module "botocore" is missing, please install it')
+
+    try:
+        core(module)
+    except (botocore.exceptions.ClientError, Exception) as e:
+        module.fail_json(msg=str(e), exception=traceback.format_exc())
+
+if __name__ == '__main__':
+    main()
