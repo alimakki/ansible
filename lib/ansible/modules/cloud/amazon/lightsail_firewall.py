@@ -106,15 +106,15 @@ def core(module):
 
     changed = False
     state = module.params['state']
-    from_port = module.params['from_port')
+    from_port = module.params['from_port']
     to_port = module.params['to_port']
     protocol = module.params['protocol']
-    instance_name = module.params['name]
+    instance_name = module.params['name']
 
     if state == 'absent':
-        changed, key_pair_dict = close_port(module, client, from_port, to_port, protocol, instance_name)
+        changed, resposne_dict = close_port(module, client, from_port, to_port, protocol, instance_name)
     elif state == 'present':
-        changed, key_pair_dict = open_port(module, client, from_port, to_port, protocol, instance_name)
+        changed, resposne_dict = open_port(module, client, from_port, to_port, protocol, instance_name)
 
     module.exit_json(changed=changed, instance=camel_dict_to_snake_dict(key_pair_dict))
 
